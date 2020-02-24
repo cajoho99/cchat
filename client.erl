@@ -32,8 +32,10 @@ handle(St, {join, Channel}) ->
     % {reply, ok, St} ;
     Result = (catch genserver:request(St#client_st.server, {join, Channel, St#client_st.nick})),
     io:fwrite("~p~n", [Channel]),
-
-    {reply, Result, St};
+    case Result of 
+        error -> {reply, error, St};
+        join -> {reply, ok, St}
+    end;
 
 % Leave channel
 handle(St, {leave, Channel}) ->
@@ -41,8 +43,10 @@ handle(St, {leave, Channel}) ->
     % {reply, ok, St} ;
     Result = genserver:request(St#client_st.server, {leave, Channel, St#client_st.nick}),
     io:fwrite("~p~n", [Channel]),
-    {reply, Result, St};
-
+    case Result of 
+        error -> {reply, error, St};
+        leave -> {reply, ok, St}
+    end;
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
     % TODO: Implement this function
@@ -75,5 +79,5 @@ handle(St, quit) ->
     {reply, ok, St} ;
 
 % Catch-all for any unhandled requests
-handle(St, Data) ->
+handle(St, _) ->
     {reply, {error, not_implemented, "Client does not handle this command"}, St} .

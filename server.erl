@@ -18,8 +18,34 @@ stop(ServerAtom) ->
     genserver:request(ServerAtom, stop).
 
 %Handle join request
-handle(State, Data) -> 
-    io:fwrite("~p~n~p~n", [State, Data]),
-    {reply, ok, State}.
+handle(State = #server_st{channels = ExistingChannels, nicks = ExistingNicks}, {join, ChannelToJoin, NickToJoin}) -> 
+    ChannelExists = lists:member(ChannelToJoin, ExistingChannels),
+    if ChannelExists -> 
+        genserver:request(list_to_atom(ChannelToJoin), {join, NickToJoin}),
+        {reply, join, State};
+        %NickExists = lists:member(NickToJoin, ExistingNicks),
+        %if NickExists -> 
+        %    {reply, join, State};
+        %true -> 
+        %    {reply, join, State#server_st{nicks = [NickToJoin | ExistingNicks]}}
+        %end
+    true -> 
+        channel:start(ChannelToJoin, NickToJoin),
+        {reply, join, State#server_st{channels = [ChannelToJoin | ExistingChannels]}}
+    end;
+
+%Handle leave request
+handle(State = #server_st{channels = ExistingChannels}, {leave, ChannelToLeave, NickToLeave}) -> 
+    ChannelExists = lists:member(ChannelToLeave, ExistingChannels),
+    if ChannelExists ->
+        genserver:request(list_to_atom(ChannelToLeave), {leave, NickToLeave}),
+        {reply, leave, State};
+    true -> 
+        {error, does_not_exists, "The channel does not exist"}
+    end;
+
+% Catch All >:(
+handle(_, _) -> 
+    {error, not_implemented, "The function does not exist"}.
 
     
