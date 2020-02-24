@@ -28,10 +28,7 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 
 % Join channel
 handle(St, {join, Channel}) ->
-    % TODO: Implement this function
-    % {reply, ok, St} ;
-    Result = (catch genserver:request(St#client_st.server, {join, Channel, St#client_st.nick})),
-    io:fwrite("~p~n", [Channel]),
+    Result = (catch genserver:request(St#client_st.server, {join, Channel, St#client_st.nick, self()})),
     case Result of 
         error -> {reply, error, St};
         join -> {reply, ok, St}
@@ -39,27 +36,29 @@ handle(St, {join, Channel}) ->
 
 % Leave channel
 handle(St, {leave, Channel}) ->
-    % TODO: Implement this function
-    % {reply, ok, St} ;
-    Result = genserver:request(St#client_st.server, {leave, Channel, St#client_st.nick}),
-    io:fwrite("~p~n", [Channel]),
+    Result = genserver:request(St#client_st.server, {leave, Channel, self()}),
     case Result of 
-        error -> {reply, error, St};
+        error -> {reply, error, St}; 
         leave -> {reply, ok, St}
     end;
+
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
-    % TODO: Implement this function
-    % {reply, ok, St} ;
-    Result = genserver:request(St#client_st.server, {message_send, [Channel, Msg], St#client_st.nick}),
-    io:fwrite("~p~n~p~n", [Channel, Msg]),
-    {reply, Result, St} ;
+    Result = (catch (genserver:request(list_to_atom(Channel), {message_send, Channel, self(), Msg}))),
+
+    case Result of
+        error -> {reply, {error, message_failed, "The message failed to send"}, St};
+        message_send -> {reply, ok, St}
+    end;
 
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
 handle(St, {nick, NewNick}) ->
-    {reply, ok, St#client_st{nick = NewNick}} ;
-
+    Reply = (catch (genserver:request(St#client_st.server, {nick, NewNick}))),
+    case Reply of
+        error -> {reply, {error, nick_taken, "Nick is taken"}, St};
+        ok -> {reply, ok, St#client_st{nick = NewNick}}
+    end;
 % ---------------------------------------------------------------------------
 % The cases below do not need to be changed...
 % But you should understand how they work!
@@ -70,6 +69,7 @@ handle(St, whoami) ->
 
 % Incoming message (from channel, to GUI)
 handle(St = #client_st{gui = GUI}, {message_receive, Channel, Nick, Msg}) ->
+    io:fwrite("Hello world!~n", []),
     gen_server:call(GUI, {message_receive, Channel, Nick++"> "++Msg}),
     {reply, ok, St} ;
 
@@ -80,4 +80,4 @@ handle(St, quit) ->
 
 % Catch-all for any unhandled requests
 handle(St, _) ->
-    {reply, {error, not_implemented, "Client does not handle this command"}, St} .
+    {reply, {error, not_implemented, "Client does not handle this command"}, St}.
