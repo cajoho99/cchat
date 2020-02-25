@@ -28,28 +28,31 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 
 % Join channel
 handle(St, {join, Channel}) ->
-    Result = (catch genserver:request(St#client_st.server, {join, Channel, St#client_st.nick, self()})),
-    case Result of 
-        error -> {reply, error, St};
-        join -> {reply, ok, St}
+    ServerExists = lists:member(St#client_st.server, registered()),
+    if ServerExists ->
+        Result = (catch genserver:request(St#client_st.server, {join, Channel, St#client_st.nick, self()})),
+        case Result of 
+            error -> {reply, error, St};
+            join -> {reply, ok, St};
+            {'EXIT', _} -> {reply, {error, server_not_reached, "Server does not respond"}, St}
+        end;
+    true -> 
+        {reply, {error, server_not_reached, "Server unreachable"}, St}
     end;
 
 % Leave channel
 handle(St, {leave, Channel}) ->
-    Result = genserver:request(St#client_st.server, {leave, Channel, self()}),
+    Result = (catch genserver:request(St#client_st.server, {leave, Channel, self()})),
     case Result of 
         error -> {reply, error, St}; 
         leave -> {reply, ok, St}
     end;
 
 % Sending message (from GUI, to channel)
-handle(St, {message_send, Channel, Msg}) ->
-    Result = (catch (genserver:request(list_to_atom(Channel), {message_send, Channel, self(), Msg}))),
-
-    case Result of
-        error -> {reply, {error, message_failed, "The message failed to send"}, St};
-        message_send -> {reply, ok, St}
-    end;
+handle(St = #client_st {nick = Nick}, {message_send, Channel, Msg}) ->
+    Result = (catch (genserver:request(list_to_atom(Channel), {message_send, Channel, Nick, self(), Msg}))),
+    io:fwrite("~p~n", [Result]),
+    {reply, Result, St};
 
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
@@ -69,7 +72,11 @@ handle(St, whoami) ->
 
 % Incoming message (from channel, to GUI)
 handle(St = #client_st{gui = GUI}, {message_receive, Channel, Nick, Msg}) ->
-    io:fwrite("Hello world!~n", []),
+    io:fwrite("~p~n", [Msg]),
+    io:fwrite("~p~n", [Channel]),
+    io:fwrite("~p~n", [Nick]),
+    io:fwrite("~p~n", ["heck"]),
+
     gen_server:call(GUI, {message_receive, Channel, Nick++"> "++Msg}),
     {reply, ok, St} ;
 

@@ -43,22 +43,24 @@ handle(State = #server_st{channels = ExistingChannels}, {leave, ChannelToLeave, 
     if ChannelExists ->
         Result = (catch (genserver:request(list_to_atom(ChannelToLeave), {leave, PidToLeave}))),
         case Result of 
-            error -> {reply, leave, State};
+            error -> {reply, error, State};
             leave -> {reply, leave, State}
         end;
     true -> 
         {error, does_not_exists, "The channel does not exist"}
     end;
 
-% Renick
+% Re-nick
 handle(State = #server_st{nicks = ExistingNicks}, {nick, Nick}) ->
     NickExists = lists:member(Nick, ExistingNicks),
     if NickExists -> 
         {reply, error, State};
     true -> 
-        NewState = #server_st {nicks = [Nick | ExistingNicks]}
+        NewState = #server_st {nicks = [Nick | ExistingNicks]},
+        {reply, nick, NewState}
     end;
 
 % Catch All >:(
-handle(_, _) -> 
+handle(State, Data) ->
+    io:format("State and Data: ~p~n~p~n", [State, Data]),
     {error, not_implemented, "The function does not exist"}.
